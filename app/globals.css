@@ -128,3 +128,23 @@
     @apply font-sans;
   }
 }
+
+@theme {
+  --color-brand: #a73a00;
+  --color-navy: #001428;
+  --color-ink: #131b2e;
+  --color-body: #43474d;
+  --color-muted: #74777e;
+  --color-field: #f2f3ff;
+  --color-line: #e2e7ff;
+  --color-cta: #ff6b1f;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
