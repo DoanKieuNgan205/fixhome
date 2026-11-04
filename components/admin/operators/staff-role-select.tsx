@@ -1,6 +1,8 @@
 import type { UseFormRegisterReturn } from "react-hook-form"
 import type { StaffRole } from "@/lib/api/staff/types"
 import { inputClass } from "./operator-styles"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SkeletonRegion } from "@/components/shared/skeletons"
 
 type Props = {
   roles: StaffRole[]
@@ -17,7 +19,11 @@ export function StaffRoleSelect({ roles, isLoading, error, fieldError, registrat
       <label htmlFor="staff-role" className="text-xs font-medium text-ink">
         Vai trò <span className="text-red-500">*</span>
       </label>
-      <select
+      {isLoading ? (
+        <SkeletonRegion label="Đang tải vai trò…">
+          <Skeleton className="h-10 w-full rounded-lg" />
+        </SkeletonRegion>
+      ) : <select
         {...registration}
         id="staff-role"
         defaultValue=""
@@ -26,9 +32,9 @@ export function StaffRoleSelect({ roles, isLoading, error, fieldError, registrat
         aria-describedby="staff-role-message"
         className={inputClass}
       >
-        <option value="" disabled>{isLoading ? "Đang tải vai trò…" : "Chọn vai trò"}</option>
+        <option value="" disabled>Chọn vai trò</option>
         {roles.map((role) => <option key={role.id} value={role.id}>{role.name || role.code}</option>)}
-      </select>
+      </select>}
       <div id="staff-role-message" className="text-xs">
         {error ? (
           <div role="alert" className="flex items-center justify-between gap-2 text-red-600">

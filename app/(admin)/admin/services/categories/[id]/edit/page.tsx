@@ -1,3 +1,4 @@
+import { FormSkeleton } from "@/components/shared/skeletons"
 /*import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { CategoryEditForm } from "@/components/admin/services/category-edit-form"
@@ -44,7 +45,7 @@ export default function EditCategoryPage({ params }: { params: Promise<{ id: str
   return (
     <>
       <h1 className="text-2xl font-bold text-ink">Chỉnh sửa thông tin danh mục</h1>
-      <Suspense fallback={null}>
+      <Suspense fallback={<FormSkeleton />}>
         <EditCategoryContent params={params} />
       </Suspense>
     </>
