@@ -1,3 +1,4 @@
+import { FormSkeleton } from "@/components/shared/skeletons"
 /*import { Suspense } from "react"
 import { DeviceForm } from "@/components/admin/services/device-form"
 
@@ -49,7 +50,7 @@ export default function NewDevicePage({
   return (
     <>
       <h1 className="text-2xl font-bold text-ink">Thêm thiết bị mới</h1>
-      <Suspense fallback={null}>
+      <Suspense fallback={<FormSkeleton />}>
         <NewDeviceContent searchParams={searchParams} />
       </Suspense>
     </>

@@ -1,6 +1,7 @@
 "use client"
 
-import { Users, LoaderCircle } from "lucide-react"
+import { Users } from "lucide-react"
+import { TableRowsSkeleton } from "@/components/shared/skeletons"
 import type { Operator } from "@/lib/admin/operators"
 import type { OperatorAction } from "./operator-types"
 import { OperatorStatusBadge } from "./operator-status-badge"
@@ -20,6 +21,7 @@ type Props = {
 export function OperatorTable({ rows, onAction, onClearFilters, isLoading, error, onRetry }: Props) {
   return (
     <div className="overflow-x-auto" aria-busy={isLoading}>
+      {isLoading && <span role="status" className="sr-only">Đang tải danh sách nhân viên…</span>}
       <table className="w-full min-w-[990px] text-left text-xs">
         <thead className="bg-indigo-50/70 text-[10px] uppercase tracking-wide text-slate-500">
           <tr>
@@ -32,16 +34,7 @@ export function OperatorTable({ rows, onAction, onClearFilters, isLoading, error
           </tr>
         </thead>
         <tbody className="divide-y divide-line/50">
-          {isLoading && (
-            <tr>
-              <td colSpan={7} className="px-4 py-14 text-center text-slate-500">
-                <div role="status" className="flex items-center justify-center gap-2">
-                  <LoaderCircle className="size-4 animate-spin" />
-                  Đang tải danh sách nhân viên…
-                </div>
-              </td>
-            </tr>
-          )}
+          {isLoading && <TableRowsSkeleton rows={6} columns={7} avatar />}
           {error && (
             <tr>
               <td colSpan={7} className="px-4 py-14 text-center">
