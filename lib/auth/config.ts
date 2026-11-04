@@ -1,10 +1,12 @@
 export const LOGIN_PATH = "/auth/login"
 export const LOGOUT_PATH = "/auth/logout"
+export const REFRESH_PATH = "/auth/refresh"
 
 export const COOKIE = {
   access: "access_token",
   refresh: "refresh_token",
   role: "app_role",
+  remember: "remember_session",
 } as const
 
 export type AppRole = "admin" | "operator"

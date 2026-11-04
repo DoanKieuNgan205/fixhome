@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { COOKIE, LOGIN_PATH, ROLE_HOME, ROLE_MAP } from "@/lib/auth/config"
+import { LOGIN_PATH, ROLE_HOME, ROLE_MAP } from "@/lib/auth/config"
+import { setSessionCookies } from "@/lib/auth/session"
 
 const fail = (error: string, status: number) =>
   NextResponse.json({ error }, { status })
@@ -38,17 +39,7 @@ export async function POST(request: Request) {
 
   const response = NextResponse.json({ redirectTo: ROLE_HOME[appRole] })
 
-  const opts = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax" as const,
-    path: "/",
-  }
-  const keep = remember ? { maxAge: 60 * 60 * 24 * 30 } : {}
-
-  response.cookies.set(COOKIE.access, tokens.access_token, { ...opts, maxAge: tokens.expires_in })
-  response.cookies.set(COOKIE.refresh, tokens.refresh_token, { ...opts, ...keep })
-  response.cookies.set(COOKIE.role, appRole, { ...opts, ...keep })
+  setSessionCookies(response, tokens, Boolean(remember), appRole)
 
   return response
 }
