@@ -32,3 +32,7 @@ export const updateDeviceType = (id: number, b: { name: string }) =>
   request(`${C}/device-types/${id}`, "PUT", b)
 export const deleteDeviceType = (id: number) =>
   request(`${C}/device-types/${id}`, "DELETE")
+export const setCategoryStatus = (id: number, is_active: boolean) =>
+  request(`${C}/categories/${id}/status`, "PATCH", { is_active })
+export const setDeviceTypeStatus = (id: number, is_active: boolean) =>
+  request(`${C}/device-types/${id}/status`, "PATCH", { is_active })

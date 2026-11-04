@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { CheckCircle2, Pencil, Plus, Trash2 } from "lucide-react"
 import { ImageUpload } from "@/components/admin/image-upload"
 import { Toggle } from "@/components/admin/toggle"
-
+import { createCategory, createDeviceType } from "@/lib/api/catalog"
 
 type DraftDevice = {
   id: string
@@ -18,13 +18,24 @@ type DraftDevice = {
   file: File | null
 }
 
-// Dữ liệu mẫu giống Figma. Khi làm thật, đổi thành mảng rỗng: []
-const SAMPLE: DraftDevice[] = [
-  { id: "s1", sku: "TB-DH-TREO", name: "Điều hòa treo tường", desc: "Inverter & Thường, công suất 9.000 BTU - 24.000 BTU", active: true, image: null, file: null },
-  { id: "s2", sku: "TB-DH-CASSETTE", name: "Điều hòa âm trần Cassette", desc: "Thổi 4 hướng / 360 độ, phục vụ căn hộ diện tích lớn & văn phòng", active: true, image: null, file: null },
-  { id: "s3", sku: "TB-TL-MULTIDOOR", name: "Tủ lạnh Side by Side / Multi Door", desc: "Dung tích trên 450L, công nghệ Dual Inverter, làm đá tự động", active: true, image: null, file: null },
-  { id: "s4", sku: "TB-MG-FRONT", name: "Máy giặt cửa ngang (Front Load)", desc: "Tải trọng giặt từ 8.5kg - 15kg, có tính năng sấy ngưng tụ", active: true, image: null, file: null },
-]
+// Chuyển "Điện lạnh" -> "DIEN_LANH" (backend bắt buộc có code)
+const toCode = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_|_$/g, "")
+
+const ERRORS: Record<string, string> = {
+  UNAUTHORIZED: "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại",
+  FORBIDDEN: "Tài khoản không có quyền thực hiện thao tác này",
+  CONFLICT: "Mã hoặc tên đã tồn tại, vui lòng đổi tên khác",
+  VALIDATION: "Dữ liệu không hợp lệ, vui lòng kiểm tra lại",
+  NETWORK: "Không kết nối được máy chủ, vui lòng thử lại",
+  SERVER: "Có lỗi xảy ra, vui lòng thử lại sau",
+}
 
 const label = "mb-1.5 block text-[11px] font-semibold text-body"
 const input =
@@ -32,7 +43,13 @@ const input =
 
 export function CategoryCreateForm() {
   const router = useRouter()
-  const counter = useRef(SAMPLE.length + 1)
+  const counter = useRef(1)
+
+  // Trạng thái gọi API
+  const [loading, setLoading] = useState(false)
+  const [submitError, setSubmitError] = useState("")
+  // Nếu danh mục đã tạo xong mà thiết bị bị lỗi, giữ id để bấm thử lại không tạo trùng danh mục
+  const createdCategory = useRef<{ id: number; code: string } | null>(null)
 
   // 01. Thông tin nhóm
   const [name, setName] = useState("")
@@ -43,7 +60,7 @@ export function CategoryCreateForm() {
   const [nameError, setNameError] = useState("")
 
   // 02. Thiết bị
-  const [items, setItems] = useState<DraftDevice[]>(SAMPLE)
+  const [items, setItems] = useState<DraftDevice[]>([])
   const [dName, setDName] = useState("")
   const [dDesc, setDDesc] = useState("")
   const [dImage, setDImage] = useState<string | null>(null)
@@ -111,18 +128,58 @@ export function CategoryCreateForm() {
     setItems((list) => list.map((i) => (i.id === id ? { ...i, active: v } : i)))
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
+    if (loading) return
+
     if (!name.trim()) {
       setNameError("Vui lòng nhập tên nhóm danh mục")
       window.scrollTo({ top: 0, behavior: "smooth" })
       return
     }
     setNameError("")
+    setSubmitError("")
+    setLoading(true)
 
-    // TODO: gọi API tạo danh mục (dùng FormData nếu có ảnh)
-    console.log({ name, description, active, imageFile, devices: items })
+    try {
+      // Bước 1: tạo danh mục (bỏ qua nếu lần bấm trước đã tạo xong)
+      if (!createdCategory.current) {
+        const code = toCode(name)
+        if (!code) {
+          setNameError("Tên nhóm danh mục không hợp lệ")
+          return
+        }
+        const cat = (await createCategory({
+          code,
+          name: name.trim(),
+          description: description.trim() || undefined,
+          // icon_url: chưa có API upload ảnh nên tạm chưa gửi
+        })) as { id: number }
+        createdCategory.current = { id: cat.id, code }
+      }
 
-    router.push("/admin/services")
+      // Bước 2: tạo lần lượt từng thiết bị, cái nào xong thì bỏ khỏi danh sách
+      const { id: categoryId, code: catCode } = createdCategory.current
+      for (const d of items) {
+        await createDeviceType(categoryId, {
+          code: `${catCode}_${toCode(d.name)}`,
+          name: d.name,
+        })
+        setItems((list) => list.filter((x) => x.id !== d.id))
+      }
+
+      router.push("/admin/services")
+      router.refresh()
+    } catch (e) {
+      const code = e instanceof Error ? e.message : "SERVER"
+      const base = ERRORS[code] ?? ERRORS.SERVER
+      setSubmitError(
+        createdCategory.current
+          ? `Đã tạo danh mục nhưng thêm thiết bị bị lỗi: ${base}. Bấm "Tạo" lần nữa để thử lại các thiết bị còn lại.`
+          : base,
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
   const onEnter = (e: React.KeyboardEvent) => {
@@ -159,6 +216,7 @@ export function CategoryCreateForm() {
               id="cat-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              disabled={!!createdCategory.current}
               placeholder="Nhập tên nhóm danh mục, ví dụ: Điện máy gia đình, Cơ khí gia dụng, Thiết bị vệ sinh..."
               className={`${input} bg-field/60 ${nameError ? "border-red-400" : ""}`}
             />
@@ -171,6 +229,7 @@ export function CategoryCreateForm() {
               id="cat-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              disabled={!!createdCategory.current}
               placeholder="Nêu tóm lược các dòng thiết bị và tiêu chuẩn công việc thuộc nhóm danh mục này..."
               className={`${input} bg-field/60`}
             />
@@ -307,6 +366,12 @@ export function CategoryCreateForm() {
         </div>
       </section>
 
+      {submitError && (
+        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {submitError}
+        </p>
+      )}
+
       <div className="flex items-center justify-end gap-4">
         <Link href="/admin/services" className="text-sm font-medium text-muted hover:text-ink">
           Hủy
@@ -314,9 +379,11 @@ export function CategoryCreateForm() {
         <button
           type="button"
           onClick={handleSubmit}
-          className="flex h-10 items-center gap-2 rounded-lg bg-cta px-6 text-sm font-semibold text-white shadow-md shadow-cta/20 transition hover:brightness-95"
+          disabled={loading}
+          className="flex h-10 items-center gap-2 rounded-lg bg-cta px-6 text-sm font-semibold text-white shadow-md shadow-cta/20 transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <CheckCircle2 className="size-4" /> Tạo nhóm danh mục &amp; Hoàn tất
+          <CheckCircle2 className="size-4" />
+          {loading ? "Đang tạo..." : <>Tạo nhóm danh mục &amp; Hoàn tất</>}
         </button>
       </div>
     </div>

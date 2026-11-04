@@ -2,57 +2,66 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   AlignLeft, ChevronLeft, ChevronRight, Droplets, House,
-  Pencil, Plus, Search, Snowflake, Tv, Utensils,
+  Pencil, Plus, Search, Snowflake, Trash2, Tv, Utensils,
 } from "lucide-react"
 import { Toggle } from "@/components/admin/toggle"
-import {
-  categories as initialCategories,
-  devices as initialDevices,
-  type Category,
-} from "@/lib/admin/mock-services"
-import { PauseDialog, type PauseTarget } from "@/components/admin/services/pause-dialog"
-import { Trash2 } from "lucide-react"
 import { DeleteDialog, type DeleteTarget } from "@/components/admin/services/delete-dialog"
+import { PauseDialog, type PauseTarget } from "@/components/admin/services/pause-dialog"
+import {
+  deleteCategory, deleteDeviceType, setCategoryStatus, setDeviceTypeStatus,
+} from "@/lib/api/catalog"
+import { apiErrorMessage } from "@/lib/api/errors"
+import type { CategoryWithDevices } from "@/lib/api/catalog-read"
 
 const PAGE_SIZE = 6
 
-const iconMap = {
-  snowflake: Snowflake,
-  droplets: Droplets,
-  utensils: Utensils,
-  house: House,
-  tv: Tv,
-}
+// Backend chưa có icon/màu cho danh mục nên xoay vòng theo thứ tự
+const ICONS = [Snowflake, Droplets, Utensils, House, Tv]
+const TONES = [
+  "bg-cyan-50 text-cyan-600",
+  "bg-indigo-50 text-indigo-600",
+  "bg-amber-50 text-amber-600",
+  "bg-emerald-50 text-emerald-600",
+  "bg-purple-50 text-purple-600",
+]
 
-const toneMap: Record<Category["tone"], string> = {
-  cyan: "bg-cyan-50 text-cyan-600",
-  indigo: "bg-indigo-50 text-indigo-600",
-  amber: "bg-amber-50 text-amber-600",
-  green: "bg-emerald-50 text-emerald-600",
-  purple: "bg-purple-50 text-purple-600",
-}
+type Selected = number | "all"
 
-export function ServiceCatalog() {
-  const [cats, setCats] = useState(initialCategories)
-  const [devs, setDevs] = useState(initialDevices)
-  const [selected, setSelected] = useState<string>("cooling")
+export function ServiceCatalog({ categories }: { categories: CategoryWithDevices[] }) {
+  const router = useRouter()
+
+  const [selectedRaw, setSelected] = useState<Selected>("all")
   const [keyword, setKeyword] = useState("")
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all")
   const [page, setPage] = useState(1)
+  const [deleting, setDeleting] = useState<{ target: DeleteTarget; id: number; name: string } | null>(null)
+  const [pending, setPending] = useState<{ target: PauseTarget; id: number; name: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState("")
 
-  const selectedCat = cats.find((c) => c.id === selected)
-  const [pending, setPending] = useState<{ target: PauseTarget; id: string; name: string } | null>(null)
-  const [deleting, setDeleting] = useState<{ target: DeleteTarget; id: string; name: string } | null>(null)
+  // Nếu danh mục đang chọn vừa bị xóa thì quay về "Tất cả"
+  const selected: Selected =
+    selectedRaw === "all" || categories.some((c) => c.id === selectedRaw) ? selectedRaw : "all"
+  const selectedCat = categories.find((c) => c.id === selected)
+
+  // Gộp thiết bị của mọi danh mục thành một danh sách phẳng
+  const devs = useMemo(
+    () =>
+      categories.flatMap((c) =>
+        c.device_types.map((d) => ({ ...d, categoryName: c.name })),
+      ),
+    [categories],
+  )
 
   const filtered = useMemo(() => {
     const k = keyword.trim().toLowerCase()
     return devs.filter((d) => {
-      const okCat = selected === "all" || d.categoryId === selected
-      const okStatus =
-        status === "all" || (status === "active" ? d.active : !d.active)
-      const okKey = !k || d.name.toLowerCase().includes(k) || d.desc.toLowerCase().includes(k)
+      const okCat = selected === "all" || d.category_id === selected
+      const okStatus = status === "all" || (status === "active" ? d.is_active : !d.is_active)
+      const okKey = !k || d.name.toLowerCase().includes(k) || d.code.toLowerCase().includes(k)
       return okCat && okStatus && okKey
     })
   }, [devs, selected, status, keyword])
@@ -61,77 +70,97 @@ export function ServiceCatalog() {
   const current = Math.min(page, totalPages)
   const rows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
 
-  function selectCategory(id: string) {
+  function selectCategory(id: Selected) {
     setSelected(id)
     setPage(1)
   }
 
-  function toggleCategory(id: string, v: boolean) {
-    if (!v) {
-      const c = cats.find((x) => x.id === id)
-      if (c) setPending({ target: "category", id, name: c.name })
-      return
-    }
-    setCats((list) => list.map((c) => (c.id === id ? { ...c, active: true } : c)))
+  // ---- Xóa ----
+  async function confirmDelete() {
+    if (!deleting) return
+    // Ném lỗi ra ngoài để DeleteDialog hiện thông báo và giữ hộp thoại mở
+    if (deleting.target === "category") await deleteCategory(deleting.id)
+    else await deleteDeviceType(deleting.id)
+
+    setDeleting(null)
+    router.refresh()
   }
 
-
-  function toggleDevice(id: string, v: boolean) {
-    if (!v) {
-      const d = devs.find((x) => x.id === id)
-      if (d) setPending({ target: "device", id, name: d.name })
-      return
+  // ---- Bật / tắt ----
+  async function applyStatus(target: PauseTarget, id: number, value: boolean) {
+    setBusy(true)
+    setActionError("")
+    try {
+      if (target === "category") await setCategoryStatus(id, value)
+      else await setDeviceTypeStatus(id, value)
+      router.refresh()
+    } catch (e) {
+      setActionError(apiErrorMessage(e))
+    } finally {
+      setBusy(false)
     }
-    setDevs((list) => list.map((d) => (d.id === id ? { ...d, active: true } : d)))
   }
 
-  function confirmPause(data: { reason: string; note: string }) {
+  // Tắt thì hỏi xác nhận, bật thì làm luôn
+  function toggleCategory(c: CategoryWithDevices, v: boolean) {
+    if (v) applyStatus("category", c.id, true)
+    else setPending({ target: "category", id: c.id, name: c.name })
+  }
+
+  function toggleDevice(d: { id: number; name: string }, v: boolean) {
+    if (v) applyStatus("device", d.id, true)
+    else setPending({ target: "device", id: d.id, name: d.name })
+  }
+
+  /*async function confirmPause() {
     if (!pending) return
-
-    // TODO: gọi API tạm ngưng, gửi kèm data.reason và data.note
-    console.log("Tạm ngưng", pending, data)
-
-    if (pending.target === "category") {
-      setCats((list) => list.map((c) => (c.id === pending.id ? { ...c, active: false } : c)))
-    } else {
-      setDevs((list) => list.map((d) => (d.id === pending.id ? { ...d, active: false } : d)))
-    }
+    const p = pending
     setPending(null)
-  }
+    // Backend chỉ nhận is_active, chưa có chỗ lưu lý do / ghi chú
+    await applyStatus(p.target, p.id, false)
+  }*/
 
-  function askDeleteCategory(id: string) {
-  const c = cats.find((x) => x.id === id)
-  if (c) setDeleting({ target: "category", id, name: c.name })
-}
+  async function confirmPause() {
+    if (!pending) return
+    const p = pending
+    setPending(null)
+    setBusy(true)
+    setActionError("")
 
-function askDeleteDevice(id: string) {
-  const d = devs.find((x) => x.id === id)
-  if (d) setDeleting({ target: "device", id, name: d.name })
-}
+    try {
+      if (p.target === "category") {
+        const cat = categories.find((c) => c.id === p.id)
+        const activeDevices = cat?.device_types.filter((d) => d.is_active) ?? []
 
-function confirmDelete() {
-  if (!deleting) return
-
-  // TODO: gọi API xóa (DELETE), thành công mới cập nhật giao diện
-  console.log("Xóa", deleting)
-
-  if (deleting.target === "category") {
-    setCats((list) => list.filter((c) => c.id !== deleting.id))
-    setDevs((list) => list.filter((d) => d.categoryId !== deleting.id))
-    if (selected === deleting.id) {
-      setSelected("all")
-      setPage(1)
+        // Bước 1: tắt các thiết bị đang bật (chạy song song cho nhanh)
+        await Promise.all(activeDevices.map((d) => setDeviceTypeStatus(d.id, false)))
+        // Bước 2: tắt danh mục
+        await setCategoryStatus(p.id, false)
+      } else {
+        await setDeviceTypeStatus(p.id, false)
+      }
+    } catch (e) {
+      setActionError(apiErrorMessage(e))
+    } finally {
+      // Làm mới cả khi lỗi giữa chừng, để thấy phần đã tắt được
+      router.refresh()
+      setBusy(false)
     }
-  } else {
-    setDevs((list) => list.filter((d) => d.id !== deleting.id))
   }
-  setDeleting(null)
-}
 
-  const catName = (id: string) => cats.find((c) => c.id === id)?.name ?? ""
+  const busyCls = busy ? "pointer-events-none opacity-60" : ""
 
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[360px_1fr]">
+      {actionError && (
+        <p
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 lg:col-span-2"
+        >
+          {actionError}
+        </p>
+      )}
+
       {/* Cột trái: phân loại danh mục */}
       <section className="rounded-xl border border-line bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between">
@@ -139,7 +168,7 @@ function confirmDelete() {
             PHÂN LOẠI DANH MỤC
           </h3>
           <span className="rounded bg-field px-2 py-0.5 text-[10px] font-semibold text-body">
-            {cats.length} nhóm
+            {categories.length} nhóm
           </span>
         </div>
 
@@ -159,8 +188,9 @@ function confirmDelete() {
             </span>
           </button>
 
-          {cats.map((c) => {
-            const Icon = iconMap[c.icon]
+          {categories.map((c, idx) => {
+            const Icon = ICONS[idx % ICONS.length]
+            const tone = TONES[idx % TONES.length]
             const active = selected === c.id
             return (
               <div
@@ -168,9 +198,9 @@ function confirmDelete() {
                 onClick={() => selectCategory(c.id)}
                 className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-3 shadow-sm transition ${
                   active ? "border-cta bg-orange-50/40" : "border-line bg-white hover:bg-field/60"
-                }`}
+                } ${c.is_active ? "" : "opacity-70"}`}
               >
-                <span className={`flex size-8 shrink-0 items-center justify-center rounded-md ${toneMap[c.tone]}`}>
+                <span className={`flex size-8 shrink-0 items-center justify-center rounded-md ${tone}`}>
                   <Icon className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -178,20 +208,28 @@ function confirmDelete() {
                     <span className="truncate">{c.name}</span>
                     {active && <span className="size-1.5 rounded-full bg-emerald-500" />}
                   </div>
-                  <div className={`text-[11px] ${active ? "text-cta" : "text-muted"}`}>{c.subtitle}</div>
+                  <div className={`text-[11px] ${active ? "text-cta" : "text-muted"}`}>
+                    {c.device_types.length} thiết bị{c.is_active ? "" : " • Tạm dừng"}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  <Toggle checked={c.active} onChange={(v) => toggleCategory(c.id, v)} label={`Bật nhóm ${c.name}`} />
+                  <span className={busyCls}>
+                    <Toggle
+                      checked={c.is_active}
+                      onChange={(v) => toggleCategory(c, v)}
+                      label={`Bật nhóm ${c.name}`}
+                    />
+                  </span>
                   <Link
-                      href={`/admin/services/categories/${c.id}/edit`}
-                      className="text-muted hover:text-ink"
-                      aria-label="Sửa nhóm"
+                    href={`/admin/services/categories/${c.id}/edit`}
+                    className="text-muted hover:text-ink"
+                    aria-label="Sửa nhóm"
                   >
-                      <Pencil className="size-3.5" />
+                    <Pencil className="size-3.5" />
                   </Link>
                   <button
                     type="button"
-                    onClick={() => askDeleteCategory(c.id)}
+                    onClick={() => setDeleting({ target: "category", id: c.id, name: c.name })}
                     className="text-muted hover:text-red-500"
                     aria-label={`Xóa nhóm ${c.name}`}
                   >
@@ -202,13 +240,16 @@ function confirmDelete() {
             )
           })}
 
-          <Link
-              href="/admin/services/categories/new"
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 py-3 text-xs font-medium text-body transition hover:bg-field"
-          >
-              <Plus className="size-4" /> Thêm nhóm danh mục mới
-          </Link>
+          {categories.length === 0 && (
+            <p className="py-4 text-center text-xs text-muted">Chưa có nhóm danh mục nào</p>
+          )}
 
+          <Link
+            href="/admin/services/categories/new"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 py-3 text-xs font-medium text-body transition hover:bg-field"
+          >
+            <Plus className="size-4" /> Thêm nhóm danh mục mới
+          </Link>
         </div>
       </section>
 
@@ -220,7 +261,7 @@ function confirmDelete() {
             <input
               value={keyword}
               onChange={(e) => { setKeyword(e.target.value); setPage(1) }}
-              placeholder="Tìm kiếm loại thiết bị, mã thiết bị, dịch vụ..."
+              placeholder="Tìm kiếm loại thiết bị, mã thiết bị..."
               className="h-full w-full bg-transparent text-xs text-ink outline-none placeholder:text-muted"
             />
           </div>
@@ -268,34 +309,40 @@ function confirmDelete() {
                 <tr key={d.id}>
                   <td className="px-5 py-3.5">
                     <div className="text-[13px] font-semibold text-ink">{d.name}</div>
-                    <div className="text-[11px] text-muted">{d.desc}</div>
+                    <div className="text-[11px] text-muted">Mã: {d.code}</div>
                   </td>
                   <td className="px-5 py-3.5">
                     <span className="rounded border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[11px] font-medium text-cyan-700">
-                      {catName(d.categoryId)}
+                      {d.categoryName}
                     </span>
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
-                      <span className={`flex items-center gap-1.5 text-xs font-medium ${d.active ? "text-emerald-600" : "text-muted"}`}>
-                        <span className={`size-1.5 rounded-full ${d.active ? "bg-emerald-500" : "bg-slate-300"}`} />
-                        {d.active ? "Áp dụng" : "Tạm dừng"}
+                      <span className={`flex items-center gap-1.5 text-xs font-medium ${d.is_active ? "text-emerald-600" : "text-muted"}`}>
+                        <span className={`size-1.5 rounded-full ${d.is_active ? "bg-emerald-500" : "bg-slate-300"}`} />
+                        {d.is_active ? "Áp dụng" : "Tạm dừng"}
                       </span>
-                      <Toggle checked={d.active} onChange={(v) => toggleDevice(d.id, v)} label={`Bật ${d.name}`} />
+                      <span className={busyCls}>
+                        <Toggle
+                          checked={d.is_active}
+                          onChange={(v) => toggleDevice(d, v)}
+                          label={`Bật ${d.name}`}
+                        />
+                      </span>
                     </div>
                   </td>
                   <td className="px-5 py-3.5 text-center">
                     <div className="flex items-center justify-center gap-3 text-muted">
                       <Link
-                          href={`/admin/services/${d.id}/edit`}
-                          className="inline-flex text-muted hover:text-ink"
-                          aria-label="Sửa thiết bị"
+                        href={`/admin/services/${d.id}/edit`}
+                        className="inline-flex text-muted hover:text-ink"
+                        aria-label="Sửa thiết bị"
                       >
-                          <Pencil className="size-4" />
+                        <Pencil className="size-4" />
                       </Link>
                       <button
                         type="button"
-                        onClick={() => askDeleteDevice(d.id)}
+                        onClick={() => setDeleting({ target: "device", id: d.id, name: d.name })}
                         className="hover:text-red-500"
                         aria-label={`Xóa thiết bị ${d.name}`}
                       >
@@ -308,12 +355,12 @@ function confirmDelete() {
             </tbody>
           </table>
         </div>
-        
+
         <Link
-            href={`/admin/services/new?category=${selected}`}
-            className="flex w-full items-center justify-center gap-2 border-y border-dashed border-slate-300 py-3 text-xs font-medium text-body transition hover:bg-field"
+          href={selected === "all" ? "/admin/services/new" : `/admin/services/new?category=${selected}`}
+          className="flex w-full items-center justify-center gap-2 border-y border-dashed border-slate-300 py-3 text-xs font-medium text-body transition hover:bg-field"
         >
-            <Plus className="size-4" /> Thêm thiết bị mới
+          <Plus className="size-4" /> Thêm thiết bị mới
         </Link>
 
         <div className="flex items-center justify-end gap-1.5 bg-field/40 px-4 py-3">
@@ -346,15 +393,16 @@ function confirmDelete() {
           </button>
         </div>
       </section>
+
       {pending && (
         <PauseDialog
           target={pending.target}
           name={pending.name}
-          runningOrders={5} // TODO: lấy từ API
+          runningOrders={0} // TODO: backend chưa có API số đơn đang chạy
           affectedCount={
             pending.target === "category"
-              ? devs.filter((d) => d.categoryId === pending.id).length
-              : 12 // TODO: lấy từ API
+              ? categories.find((c) => c.id === pending.id)?.device_types.filter((d) => d.is_active).length ?? 0
+              : 0
           }
           onCancel={() => setPending(null)}
           onConfirm={confirmPause}
@@ -367,10 +415,10 @@ function confirmDelete() {
           name={deleting.name}
           deviceCount={
             deleting.target === "category"
-              ? devs.filter((d) => d.categoryId === deleting.id).length
+              ? categories.find((c) => c.id === deleting.id)?.device_types.length ?? 0
               : 0
           }
-          runningOrders={0} // TODO: lấy từ API. Đổi thử thành 3 để xem trạng thái bị chặn
+          runningOrders={0} // TODO: backend chưa có API số đơn đang chạy
           onCancel={() => setDeleting(null)}
           onConfirm={confirmDelete}
         />

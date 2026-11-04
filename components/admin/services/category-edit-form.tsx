@@ -4,7 +4,9 @@ import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ImageUpload } from "@/components/admin/image-upload"
-import type { Category } from "@/lib/admin/mock-services"
+import type { Category } from "@/lib/api/types"
+import { updateCategory } from "@/lib/api/catalog"
+import { apiErrorMessage } from "@/lib/api/errors"
 
 const label = "mb-1.5 block text-[11px] font-semibold text-body"
 const input =
@@ -15,24 +17,40 @@ export function CategoryEditForm({ category }: { category: Category }) {
 
   const [name, setName] = useState(category.name)
   const [description, setDescription] = useState(category.description ?? "")
-  const [image, setImage] = useState<string | null>(category.image ?? null)
+  const [image, setImage] = useState<string | null>(category.icon_url)
   const [file, setFile] = useState<File | null>(null)
   const [nameError, setNameError] = useState("")
+  const [submitError, setSubmitError] = useState("")
   const [saving, setSaving] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (saving) return
+
     if (!name.trim()) {
       setNameError("Vui lòng nhập tên nhóm danh mục")
       return
     }
+    const id = Number(category.id)
+    
     setNameError("")
+    setSubmitError("")
     setSaving(true)
 
-    // TODO: gọi API PATCH /catalog/categories/:id (dùng FormData nếu có đổi ảnh)
-    console.log({ id: category.id, name: name.trim(), description: description.trim(), file })
-
-    router.push("/admin/services")
+    try {
+      await updateCategory(id, {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        // Chưa có API upload ảnh: chỉ giữ lại URL cũ, không gửi ảnh mới chọn (blob:)
+        icon_url: image && !image.startsWith("blob:") ? image : undefined,
+      })
+      router.push("/admin/services")
+      router.refresh()
+    } catch (err) {
+      setSubmitError(apiErrorMessage(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -89,6 +107,12 @@ export function CategoryEditForm({ category }: { category: Category }) {
           />
         </div>
       </div>
+
+      {submitError && (
+        <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {submitError}
+        </p>
+      )}
 
       <div className="mt-6 flex items-center gap-4">
         <button

@@ -4,31 +4,36 @@ import { useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ImagePlus, Plus, Save, X } from "lucide-react"
-import { categories, type Device } from "@/lib/admin/mock-services"
+import type { Category, DeviceType } from "@/lib/api/types"
+import { createDeviceType, updateDeviceType } from "@/lib/api/catalog"
+import { apiErrorMessage } from "@/lib/api/errors"
 
 type Props = {
   mode: "create" | "edit"
-  device?: Device
-  defaultCategoryId?: string
+  device?: DeviceType
+  categories: Category[]
+  defaultCategoryId?: number
 }
 
 const MAX_SIZE = 5 * 1024 * 1024 // 5MB
 
-export function DeviceForm({ mode, device, defaultCategoryId }: Props) {
+export function DeviceForm({ mode, device, categories, defaultCategoryId }: Props) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
+  const isEdit = mode === "edit"
 
   const initialCategory =
-    device?.categoryId ??
-    (categories.some((c) => c.id === defaultCategoryId) ? defaultCategoryId! : categories[0].id)
+    device?.category_id ??
+    (categories.some((c) => c.id === defaultCategoryId) ? defaultCategoryId! : categories[0]?.id)
 
-  const [categoryId, setCategoryId] = useState(initialCategory)
+  const [categoryId, setCategoryId] = useState<number | undefined>(initialCategory)
   const [name, setName] = useState(device?.name ?? "")
-  const [code, setCode] = useState((device as any)?.code ?? "") // Dùng code thay vì desc
-  const [preview, setPreview] = useState<string | null>(device?.image ?? null)
+  const [code, setCode] = useState(device?.code ?? "")
+  const [preview, setPreview] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [dragging, setDragging] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [submitError, setSubmitError] = useState("")
   const [errors, setErrors] = useState<{ name?: string; code?: string; image?: string }>({})
 
   function pickFile(f: File | undefined) {
@@ -56,46 +61,34 @@ export function DeviceForm({ mode, device, defaultCategoryId }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (loading) return
+
     const next: typeof errors = {}
     if (!name.trim()) next.name = "Vui lòng nhập tên loại thiết bị"
-    if (!code.trim()) next.code = "Vui lòng nhập mã thiết bị"
+    if (!isEdit && !code.trim()) next.code = "Vui lòng nhập mã thiết bị"
     setErrors(next)
     if (Object.keys(next).length > 0) return
 
+    setSubmitError("")
     setLoading(true)
 
-    try {
-      const token = localStorage.getItem("accessToken") || localStorage.getItem("token") || ""
-
-      if (mode === "create") {
-        // Gọi đến API Route nội bộ của Next.js để tránh tuyệt đối lỗi CORS
-        const response = await fetch("/api/admin/devices", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": token ? `Bearer ${token}` : "",
-          },
-          body: JSON.stringify({
-            categoryId,
-            code: code.trim(),
-            name: name.trim(),
-          }),
-        })
-
-        const result = await response.json()
-
-        if (!response.ok) {
-          throw new Error(result.message || "Thêm thiết bị thất bại")
+        try {
+      if (isEdit) {
+        if (!device) return
+        // Backend chỉ cho sửa tên (không sửa code, không đổi nhóm)
+        await updateDeviceType(device.id, { name: name.trim() })
+      } else {
+        if (categoryId === undefined) {
+          setSubmitError("Chưa có nhóm dịch vụ nào, hãy tạo nhóm trước")
+          return
         }
-
-        alert("Thêm thiết bị mới thành công!")
+        await createDeviceType(categoryId, { code: code.trim(), name: name.trim() })
       }
 
       router.push("/admin/services")
       router.refresh()
-    } catch (error: any) {
-      console.error("Lỗi:", error)
-      alert(error.message || "Có lỗi xảy ra khi kết nối tới server.")
+    } catch (err) {
+      setSubmitError(apiErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -103,7 +96,7 @@ export function DeviceForm({ mode, device, defaultCategoryId }: Props) {
 
   const label = "mb-1.5 block text-[11px] font-semibold text-body"
   const input =
-    "h-10 w-full rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none transition placeholder:text-muted focus:border-cta focus:ring-2 focus:ring-cta/15"
+    "h-10 w-full rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none transition placeholder:text-muted focus:border-cta focus:ring-2 focus:ring-cta/15 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-muted"
 
   return (
     <form onSubmit={handleSubmit} className="rounded-xl border border-line bg-white p-5 shadow-sm">
@@ -112,8 +105,9 @@ export function DeviceForm({ mode, device, defaultCategoryId }: Props) {
           <label htmlFor="category" className={label}>Nhóm dịch vụ</label>
           <select
             id="category"
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
+            value={categoryId ?? ""}
+            onChange={(e) => setCategoryId(Number(e.target.value))}
+            disabled={isEdit}
             className={input}
           >
             {categories.map((c) => (
@@ -138,20 +132,22 @@ export function DeviceForm({ mode, device, defaultCategoryId }: Props) {
 
         <div>
           <label htmlFor="code" className={label}>
-            Mã thiết bị (Code) <span className="text-red-500">*</span>
+            Mã thiết bị (Code) {!isEdit && <span className="text-red-500">*</span>}
           </label>
           <input
             id="code"
             value={code}
             onChange={(e) => setCode(e.target.value)}
+            disabled={isEdit}
             placeholder="VD: DEV_01"
             className={`${input} ${errors.code ? "border-red-400" : ""}`}
           />
+          {isEdit && <p className="mt-1 text-[11px] text-muted">Mã thiết bị không thể thay đổi sau khi tạo</p>}
           {errors.code && <p className="mt-1 text-[11px] text-red-500">{errors.code}</p>}
         </div>
 
         <div>
-          <span className={label}>{mode === "edit" ? "Hình ảnh mô tả" : "Chọn hình ảnh"}</span>
+          <span className={label}>{isEdit ? "Hình ảnh mô tả" : "Chọn hình ảnh"}</span>
           <input
             ref={fileRef}
             type="file"
@@ -202,14 +198,20 @@ export function DeviceForm({ mode, device, defaultCategoryId }: Props) {
         </div>
       </div>
 
+      {submitError && (
+        <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {submitError}
+        </p>
+      )}
+
       <div className="mt-5 flex items-center gap-4">
         <button
           type="submit"
           disabled={loading}
           className="flex h-10 min-w-[200px] items-center justify-center gap-2 rounded-lg bg-cta px-8 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-50"
         >
-          {mode === "create" ? <Plus className="size-4" /> : <Save className="size-4" />}
-          {loading ? "Đang xử lý..." : mode === "create" ? "Thêm thiết bị" : "Cập nhật thông tin thiết bị"}
+          {isEdit ? <Save className="size-4" /> : <Plus className="size-4" />}
+          {loading ? "Đang xử lý..." : isEdit ? "Cập nhật thông tin thiết bị" : "Thêm thiết bị"}
         </button>
         <Link href="/admin/services" className="text-sm font-medium text-muted hover:text-ink">
           Hủy
