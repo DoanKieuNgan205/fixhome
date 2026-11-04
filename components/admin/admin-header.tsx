@@ -50,7 +50,13 @@ export function AdminHeader() {
       ? "Chỉnh sửa thông tin thiết bị"
       : <null>*/
   
-  const subTitle = pathname.endsWith("/categories/new")
+  const subTitle = pathname.startsWith("/admin/operators/")
+  ? pathname.endsWith("/new")
+    ? "Thêm nhân viên mới"
+    : pathname.endsWith("/edit")
+      ? "Chỉnh sửa nhân viên"
+      : null
+  : pathname.endsWith("/categories/new")
   ? "Thêm nhóm danh mục mới"
   : pathname.includes("/categories/") && pathname.endsWith("/edit")
     ? "Chỉnh sửa thông tin danh mục"

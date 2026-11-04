@@ -1,0 +1,2 @@
+export const inputClass = "h-10 w-full rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none focus:border-cta focus:ring-2 focus:ring-cta/15"
+export const primaryClass = "inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-cta px-4 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
