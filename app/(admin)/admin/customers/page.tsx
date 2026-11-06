@@ -1,13 +1,8 @@
-/*import { CustomerManager } from "@/components/admin/customers/customer-manager"
-
-export default function CustomersPage() {
-  return <CustomerManager />
-}*/
-
 import { Suspense } from "react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { CustomerManager } from "@/components/admin/customers/customer-manager"
+import { PageSkeleton } from "@/components/shared/skeletons"
 import { getCustomers, getCustomerStats } from "@/lib/api/customers-read"
 import { apiErrorMessage } from "@/lib/api/errors"
 import type { UiStatus } from "@/lib/admin/customer-utils"
@@ -48,7 +43,7 @@ async function Content({ searchParams }: { searchParams: SearchParams }) {
 
 export default function CustomersPage({ searchParams }: { searchParams: SearchParams }) {
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Đang tải danh sách khách hàng...</p>}>
+    <Suspense fallback={<PageSkeleton stats={3} columns={6} label="Đang tải danh sách khách hàng…" />}>
       <Content searchParams={searchParams} />
     </Suspense>
   )

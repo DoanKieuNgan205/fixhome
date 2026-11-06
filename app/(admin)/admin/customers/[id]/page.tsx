@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { notFound, redirect } from "next/navigation"
 import { CustomerDetailView } from "@/components/admin/customers/customer-detail"
+import { PageSkeleton } from "@/components/shared/skeletons"
 import { getCustomer } from "@/lib/api/customers-read"
 import { apiErrorMessage } from "@/lib/api/errors"
 
@@ -25,7 +26,7 @@ async function Content({ params }: { params: Promise<{ id: string }> }) {
 
 export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Đang tải hồ sơ khách hàng...</p>}>
+    <Suspense fallback={<PageSkeleton variant="detail" label="Đang tải thông tin khách hàng…" />}>
       <Content params={params} />
     </Suspense>
   )

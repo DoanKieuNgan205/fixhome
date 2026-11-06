@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import { ServiceCatalog } from "@/components/admin/services/service-catalog"
 import { getCatalog, type CategoryWithDevices } from "@/lib/api/catalog-read"
+import { PageSkeleton } from "@/components/shared/skeletons"
 
 async function Content() {
   let categories: CategoryWithDevices[]
@@ -29,7 +30,7 @@ async function Content() {
 
 export default function ServicesPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<PageSkeleton variant="catalog" label="Đang tải danh mục dịch vụ…" />}>
       <Content />
     </Suspense>
   )

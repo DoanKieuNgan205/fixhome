@@ -1,3 +1,4 @@
+import { FormSkeleton } from "@/components/shared/skeletons"
 /*import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { DeviceForm } from "@/components/admin/services/device-form"
@@ -43,7 +44,7 @@ export default function EditDevicePage({ params }: { params: Promise<{ id: strin
   return (
     <>
       <h1 className="text-2xl font-bold text-ink">Chỉnh sửa thông tin thiết bị</h1>
-      <Suspense fallback={null}>
+      <Suspense fallback={<FormSkeleton />}>
         <EditDeviceContent params={params} />
       </Suspense>
     </>

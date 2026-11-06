@@ -28,7 +28,7 @@ export function OperatorManagement(props: OperatorManagementOptions) {
         </button>
       </div>
 
-      <OperatorStats total={model.total} />
+      <OperatorStats total={model.total} isLoading={model.isLoading} />
 
       {model.notice && (
         <div role="status" className="flex items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
