@@ -2,8 +2,7 @@
 
 import { useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { Operator } from "@/lib/admin/operators"
-import type { OperatorAction, OperatorValues } from "./operator-types"
+import type { OperatorAction } from "./operator-types"
 import { OperatorDetails } from "./operator-details"
 import { OperatorForm } from "./operator-form"
 import { OperatorCreateForm } from "./operator-create-form"
@@ -12,9 +11,8 @@ import { inputClass, primaryClass } from "./operator-styles"
 
 type Props = {
   action: OperatorAction | null
-  operators: Operator[]
   onActionChange: (action: OperatorAction | null) => void
-  onSave: (values: OperatorValues) => void
+  onSave: () => void
   onConfirm: () => void
   onCreated: (staff: Staff) => void
 }
@@ -39,14 +37,14 @@ function getConfirmation(action: OperatorAction) {
   return "Chuyển tài khoản sang trạng thái đã khóa trong bản xem trước?"
 }
 
-export function OperatorDialog({ action, operators, onActionChange, onSave, onConfirm, onCreated }: Props) {
-  const [isCreating, setIsCreating] = useState(false)
-  const close = () => { if (!isCreating) onActionChange(null) }
+export function OperatorDialog({ action, onActionChange, onSave, onConfirm, onCreated }: Props) {
+  const [isPending, setIsPending] = useState(false)
+  const close = () => { if (!isPending) onActionChange(null) }
 
   return (
     <Dialog open={!!action} onOpenChange={(open) => { if (!open) close() }}>
       {action && (
-        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg" showCloseButton={!isCreating}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg" showCloseButton={!isPending}>
           <DialogHeader>
             <DialogTitle>{getTitle(action)}</DialogTitle>
             <DialogDescription>
@@ -57,15 +55,15 @@ export function OperatorDialog({ action, operators, onActionChange, onSave, onCo
           </DialogHeader>
 
           {action.type === "create" && (
-            <OperatorCreateForm onCreated={onCreated} onPendingChange={setIsCreating} onCancel={close} />
+            <OperatorCreateForm onCreated={onCreated} onPendingChange={setIsPending} onCancel={close} />
           )}
 
           {action.type === "edit" && (
             <OperatorForm
               key={action.operator.id}
               operator={action.operator}
-              operators={operators}
               onSave={onSave}
+              onPendingChange={setIsPending}
               onCancel={close}
             />
           )}

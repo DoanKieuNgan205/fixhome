@@ -1,11 +1,12 @@
 import type { z } from "zod"
 import { staffListSchema, staffRolesSchema, staffSchema, type StaffListParams } from "./types"
-import type { CreateStaffRequest } from "@/lib/validations/staff"
+import type { CreateStaffRequest, UpdateStaffRequest } from "@/lib/validations/staff"
 import { buildStaffQuery } from "./query"
 
 const errorMessages: Record<number, string> = {
   401: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
   403: "Bạn không có quyền thực hiện thao tác này.",
+  404: "Không tìm thấy nhân viên. Vui lòng tải lại danh sách.",
   400: "Thông tin gửi lên không hợp lệ. Vui lòng kiểm tra lại.",
   409: "Email hoặc số điện thoại đã được sử dụng.",
   422: "Thông tin gửi lên không hợp lệ. Vui lòng kiểm tra lại.",
@@ -46,4 +47,14 @@ export function createStaff(values: CreateStaffRequest) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(values),
   }, "Không thể tạo nhân viên. Vui lòng kiểm tra danh sách trước khi thử lại.")
+}
+
+export async function updateStaff(id: string, values: UpdateStaffRequest): Promise<void> {
+  const response = await fetch(`/api/admin/staff/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(values),
+    cache: "no-store",
+  })
+  if (!response.ok) throw new StaffApiError(response.status, "Không thể cập nhật nhân viên. Vui lòng thử lại.")
 }

@@ -53,6 +53,61 @@ function setup(t, values = {}) {
 const tokens = { access_token: "new-access", refresh_token: "new-refresh", expires_in: 900 }
 const json = (body, status = 200) => Response.json(body, { status })
 
+test("staff PATCH forwards validated fields with the authenticated session", async (t) => {
+  const { load } = setup(t, { access_token: "valid" })
+  const values = { full_name: "Nguyễn Văn An", phone: "+84912345678", status: "suspended" }
+  global.fetch = async (url, options) => {
+    assert.equal(url, "https://backend.example/api/v1/admin/staff/42")
+    assert.equal(options.method, "PATCH")
+    assert.equal(options.headers.Authorization, "Bearer valid")
+    assert.deepEqual(JSON.parse(options.body), values)
+    return new Response(null, { status: 204 })
+  }
+  const response = await load("app/api/admin/staff/[id]/route.ts").PATCH(
+    new Request("https://frontend.example/api/admin/staff/42", {
+      method: "PATCH", body: JSON.stringify({ ...values, email: "ignored@example.com", role_id: 1 }),
+    }),
+    { params: Promise.resolve({ id: "42" }) },
+  )
+  assert.equal(response.status, 204)
+  assert.equal(response.headers.get("Cache-Control"), "no-store")
+})
+
+test("staff PATCH rejects invalid IDs and payloads before calling backend", async (t) => {
+  const { load } = setup(t, { access_token: "valid" })
+  global.fetch = () => assert.fail("invalid requests must not reach backend")
+  const { PATCH } = load("app/api/admin/staff/[id]/route.ts")
+  for (const [id, body] of [
+    ["0", { full_name: "An" }], ["../roles", { full_name: "An" }],
+    ["9223372036854775808", { full_name: "An" }],
+    ["42", {}], ["42", { email: "unsupported@example.com" }],
+    ["42", { full_name: "  " }], ["42", { phone: "invalid" }],
+    ["42", { status: "locked" }], ["42", null],
+  ]) {
+    const response = await PATCH(new Request("https://frontend.example/api/admin/staff/42", {
+      method: "PATCH", body: JSON.stringify(body),
+    }), { params: Promise.resolve({ id }) })
+    assert.equal(response.status, 400, JSON.stringify({ id, body }))
+  }
+})
+
+test("staff update client accepts empty success and exposes API errors", async (t) => {
+  const { load } = setup(t)
+  const { updateStaff, StaffApiError } = load("lib/api/staff/client.ts")
+  const values = { full_name: "An", phone: "0912345678", status: "active" }
+  global.fetch = async (url, options) => {
+    assert.equal(url, "/api/admin/staff/42")
+    assert.equal(options.method, "PATCH")
+    assert.deepEqual(JSON.parse(options.body), values)
+    return new Response(null, { status: 204 })
+  }
+  await updateStaff("42", values)
+  for (const status of [401, 403, 404, 409, 422, 502]) {
+    global.fetch = async () => json({}, status)
+    await assert.rejects(updateStaff("42", values), (error) => error instanceof StaffApiError && error.status === status)
+  }
+})
+
 function assertCleared(response) {
   for (const key of ["access_token", "refresh_token", "app_role", "remember_session"]) {
     assert.equal(response.cookies.get(key)?.maxAge, 0, key)

@@ -47,8 +47,9 @@ export function useOperatorManagement({ initialMode, initialOperator }: Operator
   }
 
   function saveOperator() {
-    setNotice("Chưa tích hợp API sửa nhân viên. Thông tin chưa được lưu lên hệ thống.")
+    setNotice("Đã cập nhật thông tin nhân viên.")
     setAction(null)
+    list.retry()
   }
 
   function handleCreated(staff: Staff) {
