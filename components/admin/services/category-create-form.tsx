@@ -7,6 +7,7 @@ import { CheckCircle2, Pencil, Plus, Trash2 } from "lucide-react"
 import { ImageUpload } from "@/components/admin/image-upload"
 import { Toggle } from "@/components/admin/toggle"
 import { createCategory, createDeviceType } from "@/lib/api/catalog"
+import { uploadImage, UploadError } from "@/lib/api/media"
 
 type DraftDevice = {
   id: string
@@ -50,7 +51,7 @@ export function CategoryCreateForm() {
   const [submitError, setSubmitError] = useState("")
   // Nếu danh mục đã tạo xong mà thiết bị bị lỗi, giữ id để bấm thử lại không tạo trùng danh mục
   const createdCategory = useRef<{ id: number; code: string } | null>(null)
-
+  const uploadedUrl = useRef<string | null>(null)
   // 01. Thông tin nhóm
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
@@ -148,11 +149,17 @@ export function CategoryCreateForm() {
           setNameError("Tên nhóm danh mục không hợp lệ")
           return
         }
+
+        // Tải ảnh lên trước (chỉ tải một lần, bấm thử lại không tải lại)
+        if (imageFile && !uploadedUrl.current) {
+          uploadedUrl.current = (await uploadImage(imageFile)).url
+        }
+
         const cat = (await createCategory({
           code,
           name: name.trim(),
           description: description.trim() || undefined,
-          // icon_url: chưa có API upload ảnh nên tạm chưa gửi
+          icon_url: uploadedUrl.current ?? undefined,
         })) as { id: number }
         createdCategory.current = { id: cat.id, code }
       }
@@ -170,8 +177,11 @@ export function CategoryCreateForm() {
       router.push("/admin/services")
       router.refresh()
     } catch (e) {
-      const code = e instanceof Error ? e.message : "SERVER"
-      const base = ERRORS[code] ?? ERRORS.SERVER
+      const base =
+        e instanceof UploadError
+          ? e.message
+          : (ERRORS[e instanceof Error ? e.message : "SERVER"] ?? ERRORS.SERVER)
+
       setSubmitError(
         createdCategory.current
           ? `Đã tạo danh mục nhưng thêm thiết bị bị lỗi: ${base}. Bấm "Tạo" lần nữa để thử lại các thiết bị còn lại.`

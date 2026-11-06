@@ -200,9 +200,14 @@ export function ServiceCatalog({ categories }: { categories: CategoryWithDevices
                   active ? "border-cta bg-orange-50/40" : "border-line bg-white hover:bg-field/60"
                 } ${c.is_active ? "" : "opacity-70"}`}
               >
-                <span className={`flex size-8 shrink-0 items-center justify-center rounded-md ${tone}`}>
-                  <Icon className="size-4" />
-                </span>
+                {c.icon_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={c.icon_url} alt="" className="size-8 shrink-0 rounded-md object-cover" />
+                ) : (
+                  <span className={`flex size-8 shrink-0 items-center justify-center rounded-md ${tone}`}>
+                    <Icon className="size-4" />
+                  </span>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-[13px] font-semibold text-ink">
                     <span className="truncate">{c.name}</span>

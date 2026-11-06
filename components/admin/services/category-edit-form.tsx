@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { ImageUpload } from "@/components/admin/image-upload"
 import type { Category } from "@/lib/api/types"
 import { updateCategory } from "@/lib/api/catalog"
-import { apiErrorMessage } from "@/lib/api/errors"
+import { uploadImage, uploadErrorMessage } from "@/lib/api/media"
 
 const label = "mb-1.5 block text-[11px] font-semibold text-body"
 const input =
@@ -31,23 +31,30 @@ export function CategoryEditForm({ category }: { category: Category }) {
       setNameError("Vui lòng nhập tên nhóm danh mục")
       return
     }
-    const id = Number(category.id)
-    
+
     setNameError("")
     setSubmitError("")
     setSaving(true)
 
     try {
-      await updateCategory(id, {
+      let iconUrl: string | undefined
+      if (file) {
+        iconUrl = (await uploadImage(file)).url // ảnh mới chọn: tải lên Cloudinary
+      } else if (image) {
+        iconUrl = image // giữ ảnh cũ (đã là URL)
+      } else if (category.icon_url) {
+        iconUrl = "" // admin đã bấm xóa ảnh cũ
+      }
+
+      await updateCategory(category.id, {
         name: name.trim(),
         description: description.trim() || undefined,
-        // Chưa có API upload ảnh: chỉ giữ lại URL cũ, không gửi ảnh mới chọn (blob:)
-        icon_url: image && !image.startsWith("blob:") ? image : undefined,
+        icon_url: iconUrl,
       })
       router.push("/admin/services")
       router.refresh()
     } catch (err) {
-      setSubmitError(apiErrorMessage(err))
+      setSubmitError(uploadErrorMessage(err))
     } finally {
       setSaving(false)
     }
