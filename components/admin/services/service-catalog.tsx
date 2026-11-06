@@ -201,11 +201,13 @@ export function ServiceCatalog({ categories }: { categories: CategoryWithDevices
                 } ${c.is_active ? "" : "opacity-70"}`}
               >
                 {c.icon_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={c.icon_url} alt="" className="size-8 shrink-0 rounded-md object-cover" />
+                  <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-line bg-white">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={c.icon_url} alt="" className="size-full object-contain p-1" />
+                  </span>
                 ) : (
-                  <span className={`flex size-8 shrink-0 items-center justify-center rounded-md ${tone}`}>
-                    <Icon className="size-4" />
+                  <span className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${tone}`}>
+                    <Icon className="size-5" />
                   </span>
                 )}
                 <div className="min-w-0 flex-1">

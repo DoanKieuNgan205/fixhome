@@ -36,7 +36,7 @@ export function CategoryEditForm({ category }: { category: Category }) {
     setSubmitError("")
     setSaving(true)
 
-    try {
+    /*try {
       let iconUrl: string | undefined
       if (file) {
         iconUrl = (await uploadImage(file)).url // ảnh mới chọn: tải lên Cloudinary
@@ -51,6 +51,33 @@ export function CategoryEditForm({ category }: { category: Category }) {
         description: description.trim() || undefined,
         icon_url: iconUrl,
       })
+      router.push("/admin/services")
+      router.refresh()
+    }*/
+    try {
+      let iconUrl: string | undefined
+      if (file) {
+        iconUrl = (await uploadImage(file)).url // ảnh mới chọn: tải lên Cloudinary
+      } else if (image) {
+        iconUrl = image // giữ ảnh cũ (đã là URL)
+      } else if (category.icon_url) {
+        iconUrl = "" // admin đã bấm xóa ảnh cũ
+      }
+
+      const saved = (await updateCategory(category.id, {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        icon_url: iconUrl,
+      })) as { icon_url?: string | null } | null
+
+      // Kiểm tra backend đã thật sự lưu ảnh chưa
+      if (iconUrl && !saved?.icon_url) {
+        setSubmitError(
+          `Ảnh đã tải lên nhưng backend KHÔNG lưu ảnh (icon_url trống). Link ảnh: ${iconUrl}`,
+        )
+        return
+      }
+
       router.push("/admin/services")
       router.refresh()
     } catch (err) {
