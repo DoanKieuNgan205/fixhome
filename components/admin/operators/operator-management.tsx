@@ -67,7 +67,6 @@ export function OperatorManagement(props: OperatorManagementOptions) {
 
       <OperatorDialog
         action={model.action}
-        operators={model.rows}
         onActionChange={model.setAction}
         onSave={model.saveOperator}
         onConfirm={model.confirmAction}

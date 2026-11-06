@@ -9,3 +9,14 @@ export const createStaffSchema = z.object({
 })
 
 export type CreateStaffRequest = z.infer<typeof createStaffSchema>
+
+export const updateStaffSchema = z.object({
+  full_name: createStaffSchema.shape.full_name.optional(),
+  phone: createStaffSchema.shape.phone.optional(),
+  status: z.enum(["active", "suspended"]).optional(),
+  avatar_url: z.url("URL ảnh đại diện không hợp lệ.").optional(),
+}).refine((values) => Object.values(values).some((value) => value !== undefined), {
+  message: "Vui lòng nhập thông tin cần cập nhật.",
+})
+
+export type UpdateStaffRequest = z.infer<typeof updateStaffSchema>
