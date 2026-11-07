@@ -4,7 +4,7 @@ import type { OperatorTab } from "./operator-types"
 
 const tabs: { value: OperatorTab; label: string }[] = [
   { value: "all", label: "Tất cả" },
-  { value: "Active", label: "Hoạt động" },
+  { value: "active", label: "Hoạt động" },
   { value: "suspended", label: "Tạm ngưng" },
 ]
 
