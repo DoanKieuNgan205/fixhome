@@ -33,3 +33,34 @@ export type Paginated<T> = {
   total_items: number
   total_pages: number
 }
+
+export type ApiTechnician = {
+  id: number
+  account_id: number
+  full_name: string
+  email: string | null
+  phone: string | null
+  status: string
+  verification_status: string
+  verification_rejection_reason: string | null
+  is_available: boolean
+  updated_at: string
+  profile?: {
+    id: number
+    account_id: number
+    avatar_url: string | null
+    date_of_birth: string | null
+    gender: string | null
+    citizen_id: string | null
+    current_address: string | null
+    current_ward_code: string | null
+    emergency_contact_name: string | null
+    emergency_contact_relationship: string | null
+    emergency_contact_phone: string | null
+    verification_status: string
+    verification_rejection_reason: string | null
+    is_available: boolean
+    verified_at: string | null
+    identity_media: { id: number; media_url: string; media_type: string }[]
+  }
+}
