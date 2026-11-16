@@ -45,6 +45,8 @@ export type ApiTechnician = {
   verification_rejection_reason: string | null
   is_available: boolean
   updated_at: string
+  //created_at: string
+  created_at?: string
   profile?: {
     id: number
     account_id: number
@@ -63,4 +65,21 @@ export type ApiTechnician = {
     verified_at: string | null
     identity_media: { id: number; media_url: string; media_type: string }[]
   }
+}
+
+export type ReviewDecision = "APPROVE" | "REJECT"
+
+// Phần tử của GET /operator/technician-specialties và response của PATCH .../review
+export type ApiTechnicianSpecialty = {
+  id: number
+  technician_id: number
+  category_id: number
+  experience_level: string
+  accept_all_devices: boolean
+  status: string
+  rejection_reason: string | null
+  device_type_ids: number[]
+  evidence_urls: string[]
+  created_at: string
+  reviewed_at: string | null
 }
