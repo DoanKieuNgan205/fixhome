@@ -35,10 +35,12 @@ export function OperatorSidebar() {
 
       {/* BUTTON TẠO ĐƠN */}
       <div className="px-4">
-        <button className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-cta text-sm font-semibold text-white transition hover:brightness-95">
-          <Plus className="size-4" />
-          Tạo đơn hộ khách
-        </button>
+        <Link
+          href="/operator/orders/create"
+          className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-cta text-sm font-semibold text-white ...giữ nguyên..."
+        >
+          <Plus className="size-4" /> Tạo đơn hộ khách
+        </Link>
       </div>
 
       {/* MENU */}

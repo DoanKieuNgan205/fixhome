@@ -1,8 +1,8 @@
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
-import { TechnicianDetailView } from "@/components/admin/technicians/technician-detail"
+import { TechnicianProfile } from "@/components/operator/technicians/technician-profile"
 import { PageSkeleton } from "@/components/shared/skeletons"
-import { getTechnician } from "@/lib/api/technicians-read"
+import { getTechnicianApplication } from "@/lib/api/operator-technicians-read"
 
 async function Content({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -10,8 +10,8 @@ async function Content({ params }: { params: Promise<{ id: string }> }) {
   if (!Number.isInteger(techId) || techId <= 0) notFound()
 
   try {
-    const tech = await getTechnician(techId)
-    return <TechnicianDetailView tech={tech} />
+    const tech = await getTechnicianApplication(techId)
+    return <TechnicianProfile tech={tech} />
   } catch (e) {
     const code = e instanceof Error ? e.message : "SERVER"
     if (code === "NOT_FOUND") notFound()
@@ -23,7 +23,7 @@ async function Content({ params }: { params: Promise<{ id: string }> }) {
   }
 }
 
-export default function TechnicianDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function OperatorTechnicianPage({ params }: { params: Promise<{ id: string }> }) {
   return (
     <Suspense fallback={<PageSkeleton variant="detail" label="Đang tải hồ sơ kỹ thuật viên…" />}>
       <Content params={params} />
