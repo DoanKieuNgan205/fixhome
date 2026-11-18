@@ -1,8 +1,10 @@
 import {
-  AlertTriangle, ArrowRight, Clock, FileText,
-  Headphones, MapPin, ShieldCheck, Star,
+  AlertTriangle, ArrowRight, FileText, Headphones, ShieldCheck, Star,
 } from "lucide-react"
-import { onlineTechnicians, requests, stats, type RequestItem } from "@/lib/operator/mock-dashboard"
+import { DispatchRequestList } from "@/components/operator/dispatch/dispatch-request-list"
+import { getManualQueue } from "@/lib/api/operator-orders-read"
+import type { QueueOrder } from "@/lib/operator/repair-order-mappers"
+import { onlineTechnicians, requests, stats } from "@/lib/operator/mock-dashboard"
 
 const statStyle = {
   red: { box: "bg-red-50 border-red-100", icon: "bg-red-100 text-red-500", value: "text-red-600", Icon: AlertTriangle },
@@ -17,68 +19,56 @@ const techTone = {
   amber: "bg-amber-50 text-amber-700",
 }
 
-function RequestCard({ r }: { r: RequestItem }) {
-  return (
-    <article className="rounded-lg border border-line border-l-4 border-l-red-400 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between text-xs">
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 font-medium text-red-600">
-            <span className="size-1.5 rounded-full bg-red-500" /> Chưa có thợ nhận
-          </span>
-          <span className="flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-red-600">
-            <Clock className="size-3" /> Chờ {r.waitMinutes} phút
-          </span>
-        </div>
-        <span className="font-medium text-muted">{r.id}</span>
-      </div>
-
-      <div className="mt-2.5 flex items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-ink">
-            {r.title}
-            {r.note && <span className="ml-2 text-xs font-normal text-red-500">({r.note})</span>}
-          </h3>
-          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">
-            <MapPin className="size-3" /> {r.area}
-            <span>• Khách: <b className="text-ink">{r.customer}</b></span>
-          </p>
-          {r.estimate && (
-            <p className="mt-1 text-xs text-muted">
-              • Dự kiến: <b className="text-cta">{r.estimate}</b>
-            </p>
-          )}
-        </div>
-
-        <div className="flex shrink-0 gap-2">
-          <button className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-field">
-            Xem chi tiết
-          </button>
-          <button
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95 ${
-              r.state === "unhandled" ? "bg-cta" : "bg-emerald-400"
-            }`}
-          >
-            {r.state === "unhandled" ? "Chưa xử lý" : "Đang xử lý"}
-          </button>
-        </div>
-      </div>
-    </article>
-  )
+// Chuyển dữ liệu mẫu cũ sang dạng QueueOrder để xem giao diện (?demo=1)
+function demoData() {
+  const processing: number[] = []
+  const orders: QueueOrder[] = requests.map((r, i) => {
+    const id = Number(String(r.id).replace(/\D/g, "")) * 10 + i // mã mẫu bị trùng nên cộng thêm i
+    if (r.state !== "unhandled") processing.push(id)
+    return {
+      id,
+      code: r.id,
+      title: r.title,
+      customerName: r.customer,
+      customerPhone: null,
+      address: null,
+      area: r.area,
+      createdAt: new Date(Date.now() - r.waitMinutes * 60_000).toISOString(),
+      expiresAt: null,
+      priority: r.note && /gấp/i.test(r.note) ? "URGENT" : null,
+      estimate: r.estimate ? Number(String(r.estimate).replace(/\D/g, "")) : null,
+      raw: {},
+    }
+  })
+  return { orders, processing }
 }
 
-export default function OperatorOverviewPage() {
+export default async function OperatorOverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ demo?: string }>
+}) {
+  const { demo } = await searchParams
+  const isDemo = demo === "1"
+
+  const queue = isDemo ? null : await getManualQueue(1, 5).catch(() => null)
+  const sample = isDemo ? demoData() : null
+  const failed = !isDemo && queue === null
+
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((s) => {
+        {stats.map((s, i) => {
           const st = statStyle[s.tone]
+          // Thẻ "Đơn ngoại lệ" lấy số thật từ hàng chờ gán thợ
+          const value = i === 0 && queue ? queue.total : s.value
           return (
             <div key={s.label} className={`relative rounded-xl border p-4 ${st.box}`}>
               <ArrowRight className="absolute right-4 top-4 size-4 text-slate-300" />
               <div className={`flex size-8 items-center justify-center rounded-lg ${st.icon}`}>
                 <st.Icon className="size-4" />
               </div>
-              <div className={`mt-3 text-2xl font-bold ${st.value}`}>{s.value}</div>
+              <div className={`mt-3 text-2xl font-bold ${st.value}`}>{value}</div>
               <div className="text-xs text-body">{s.label}</div>
             </div>
           )
@@ -86,15 +76,21 @@ export default function OperatorOverviewPage() {
       </div>
 
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_300px]">
-        <section className="space-y-3">
-          <h2 className="rounded-lg border border-line bg-white px-4 py-3 text-sm font-semibold text-ink shadow-sm">
-            Danh sách yêu cầu tìm thợ
-          </h2>
-          {requests.map((r, i) => (
-            <RequestCard key={`${r.id}-${i}`} r={r} />
-          ))}
-        </section>
+        <div className="space-y-3">
+          {failed && (
+            <p role="alert" className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+              Không tải được danh sách yêu cầu tìm thợ. Vui lòng tải lại trang.
+            </p>
+          )}
+          <DispatchRequestList
+            orders={isDemo ? sample!.orders : (queue?.items ?? [])}
+            total={queue?.total}
+            demo={isDemo}
+            initialProcessing={sample?.processing}
+          />
+        </div>
 
+        {/* TODO: chưa có API danh sách thợ đang online, tạm giữ dữ liệu mẫu */}
         <aside className="rounded-xl border border-line bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-2 font-semibold text-body">

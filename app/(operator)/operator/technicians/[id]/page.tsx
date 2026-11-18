@@ -3,8 +3,10 @@ import { notFound } from "next/navigation"
 import { TechnicianProfile } from "@/components/operator/technicians/technician-profile"
 import { PageSkeleton } from "@/components/shared/skeletons"
 import { getTechnicianApplication } from "@/lib/api/operator-technicians-read"
+import { connection } from "next/server"
 
 async function Content({ params }: { params: Promise<{ id: string }> }) {
+  await connection() 
   const { id } = await params
   const techId = Number(id)
   if (!Number.isInteger(techId) || techId <= 0) notFound()
