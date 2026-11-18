@@ -32,8 +32,12 @@ function maskPhone(phone: string | null) {
 
 // Giả định: status KTV dùng cùng enum với khách hàng (STATUS_PARAM.active = giá trị "hoạt động").
 // Nếu backend KTV có giá trị khác (vd PENDING, REJECTED) thì chỉnh lại ở đây.
-function isActive(status: string) {
+/*function isActive(status: string) {
   return status.toLowerCase() === "active"
+}*/
+
+function isActive(status: string | null | undefined) {
+  return (status ?? "").toLowerCase() === "active"
 }
 
 export function toTechnician(a: ApiTechnician): TechnicianRow {
